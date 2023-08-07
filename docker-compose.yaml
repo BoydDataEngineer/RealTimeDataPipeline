@@ -14,60 +14,72 @@ services:
       - zookeeper
     networks:
       - kafka-network
+    ports:
+      - 9092:9092
     environment:
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   postgres:
-    image: postgres:latest
+    image: postgres:13
+    # Environment variables to create the Airflow user and database
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    networks:
+      - kafka-network
+    # Expose PostgreSQL port for external connections
+    ports:
+    - "5432:5432"
+    # Mount volume for persisting database data
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    # Always restart service if it stops
+    restart: always
+  # PGAdmin service for managing PostgreSQL database
+  pgadmin: 
+    image: dpage/pgadmin4
+    restart: always
+    # Default email and password for PGAdmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    networks:
+      - kafka-network
+    # Expose PGAdmin web UI port for external connections
+    ports:
+      - "5050:80"
+
+  consumer:
+    build:
+      context: ./consumer
     networks:
       - kafka-network
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    volumes:
-      - postgres-data:/var/lib/postgresql/data
-
-  minio:
-    image: minio/minio:latest
-    networks:
-      - kafka-network
-    volumes:
-      - minio-data:/data
-    command: server /data
-    environment:
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+    depends_on:
+      - kafka
+      - postgres
+    command: ["/wait-for-it.sh", "kafka:9092", "--", "/wait-for-it.sh", "postgres:5432", "--", "python", "consumer.py"]
+    # restart: always
 
   producer:
-    build: ./producer
+    build:
+      context: ./producer
     networks:
       - kafka-network
-    environment:
-      CONSUMER_KEY: ${CONSUMER_KEY}
-      CONSUMER_SECRET: ${CONSUMER_SECRET}
-      ACCESS_TOKEN: ${ACCESS_TOKEN}
-      ACCESS_TOKEN_SECRET: ${ACCESS_TOKEN_SECRET}
-      NEWS_API_KEY: ${NEWS_API_KEY}
-
-  consumer:
-    build: ./consumer
     depends_on:
-      - postgres
-      - minio
-    networks:
-      - kafka-network
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
-      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      - kafka
+    command: ["/wait-for-it.sh", "kafka:9092", "--", "python", "producer.py"]
+    # restart: always
 
+# Defining a named volume for PostgreSQL data persistence
 volumes:
-  postgres-data:
-  minio-data:
+  postgres-db-volume:
 
 networks:
   kafka-network:
