@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 import json
 from confluent_kafka import Producer
 import time
+import os
 
 logging.basicConfig(
     filename='stream=sys.stdout',
@@ -84,8 +85,8 @@ def reconnect():
 
 HOSTNAME = "darwin-dist-44ae45.nationalrail.co.uk"
 HOSTPORT = 61613
-USERNAME = "DARWIN5c6cec5f-a1c5-43e6-9e9e-fd753635f12a"
-PASSWORD = "9ae0dced-92a7-428a-8313-5f44113be2d6"
+USERNAME = os.getenv("USERNAME")
+PASSWORD = os.getenv("PASSWORD")
 TOPIC = "/topic/darwin.pushport-v16"
 
 KAFKA_BROKER = 'kafka:9092'

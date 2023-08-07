@@ -72,6 +72,9 @@ services:
       context: ./producer
     networks:
       - kafka-network
+    environment:
+      - USERNAME: ${USERNAME}
+      - PASSWORD: ${PASSWORD}
     depends_on:
       - kafka
     command: ["/wait-for-it.sh", "kafka:9092", "--", "python", "producer.py"]
