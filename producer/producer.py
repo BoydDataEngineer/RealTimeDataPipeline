@@ -1,3 +1,26 @@
+"""
+Producer Script for RealTimeDataPipeline
+
+This script is responsible for producing messages to a Kafka topic based on data received from an external API using the STOMP protocol.
+
+Key Features:
+    - STOMP Connection: Connects to an external server using the STOMP protocol and listens for incoming messages.
+    - Data Parsing: Parses the received XML messages, extracts relevant data, and converts it to JSON format.
+    - Kafka Production: Produces the parsed data to a Kafka topic.
+
+Environment Variables:
+    - USERNAME_API: Username for the external STOMP server.
+    - PASSWORD_API: Password for the external STOMP server.
+
+Dependencies:
+    - stomp: Python client library for accessing messaging servers using the STOMP protocol.
+    - confluent_kafka: Confluent's Kafka Python client.
+    - xml.etree.ElementTree: Python's XML parsing library.
+
+Author: Boyd Werkman
+Date: 8-8-2023
+"""
+
 import stomp
 import gzip
 import logging
@@ -7,25 +30,31 @@ from confluent_kafka import Producer
 import time
 import os
 
+# Logging Configuration
 logging.basicConfig(
     filename='stream=sys.stdout',
-    format='%(asctime)s %(levelname)s\t%(message)s',
+    format='%(asctime)s %(levelname)s\\t%(message)s',
     level=logging.INFO
 )
 
 class MyListener(stomp.ConnectionListener):
+    """
+    Custom listener class for handling STOMP connection events.
+    """
     def on_error(self, frame):
-        logging.error('Received an error "%s"' % frame.body)
+        logging.error('Received an error \"%s\"' % frame.body)
 
     def on_disconnected(self):
         logging.error('Disconnected from the STOMP server. Attempting to reconnect...')
         reconnect()
 
     def on_message(self, frame):
+        # Decompressing and parsing the received message
         compressed_data = frame.body
         decompressed_data = gzip.decompress(compressed_data)
         logging.info(f"Received message: {decompressed_data}")
-  
+
+        # Extracting relevant data from the XML message
         root = ET.fromstring(decompressed_data)
         if root is None:
             logging.error("Failed to parse XML.")
@@ -70,7 +99,7 @@ class MyListener(stomp.ConnectionListener):
 
             print(f"Received message at: {timestamp}")
 
-
+# Reconnection logic for STOMP server
 def reconnect():
     while True:
         try:
@@ -82,13 +111,14 @@ def reconnect():
             logging.error(f"Failed to reconnect: {e}")
             time.sleep(5)  # Wait for 5 seconds before trying to reconnect
 
-
+# STOMP Server Configuration
 HOSTNAME = "darwin-dist-44ae45.nationalrail.co.uk"
 HOSTPORT = 61613
 USERNAME = os.getenv("USERNAME_API")
 PASSWORD = os.getenv("PASSWORD_API")
 TOPIC = "/topic/darwin.pushport-v16"
 
+# Kafka Configuration
 KAFKA_BROKER = 'kafka:9092'
 KAFKA_TOPIC = 'train_loading'
 

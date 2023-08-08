@@ -1,6 +1,7 @@
 # Use an official Python runtime as a parent image
 FROM python:3.8-slim-buster
 
+# Run the wait-for-it script to wait for the broker to be ready
 COPY wait-for-it.sh /wait-for-it.sh
 RUN chmod +x /wait-for-it.sh
 

@@ -1,6 +1,33 @@
+# Docker Compose Configuration for RealTimeDataPipeline
+#
+# This configuration file defines the services, networks, and volumes required to run the real-time data pipeline using Docker Compose.
+#
+# Key Features:
+#   - Kafka Cluster: Sets up a Kafka cluster using Zookeeper and Kafka services.
+#   - PostgreSQL Database: Configures a PostgreSQL database for storing consumed data.
+#   - PGAdmin: Provides a web-based PostgreSQL management tool.
+#   - Consumer & Producer: Sets up the consumer and producer services based on custom Dockerfiles.
+#
+# Environment Variables:
+#   - POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB: Credentials and database name for PostgreSQL.
+#   - PGADMIN_DEFAULT_EMAIL, PGADMIN_DEFAULT_PASSWORD: Default login credentials for PGAdmin.
+#   - USERNAME_API, PASSWORD_API: Credentials for the external STOMP server (used in producer).
+#
+# Volumes:
+#   - postgres-db-volume: Persists PostgreSQL data.
+#   - zookeeper-data-volume: Persists Zookeeper data.
+#   - kafka-data-volume: Persists Kafka data.
+#
+# Networks:
+#   - kafka-network: A custom bridge network for inter-service communication.
+#
+# Author: Boyd Werkman
+# Date: 8-8-2023
+
 version: '3.8'
 
 services:
+  # Zookeeper service for managing the Kafka cluster
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
     networks:
@@ -9,7 +36,8 @@ services:
       ZOOKEEPER_CLIENT_PORT: 2181
     volumes:
       - zookeeper-data-volume:/var/lib/zookeeper
-
+ 
+  # Kafka service for message brokering
   kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:
@@ -25,37 +53,34 @@ services:
     volumes:
       - kafka-data-volume:/var/lib/kafka/data
   
+  # PostgreSQL database service
   postgres:
     image: postgres:13
-    # Environment variables to create the Airflow user and database
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     networks:
       - kafka-network
-    # Expose PostgreSQL port for external connections
     ports:
     - "5432:5432"
-    # Mount volume for persisting database data
     volumes:
       - postgres-db-volume:/var/lib/postgresql/data
-    # Always restart service if it stops
     restart: always
+  
   # PGAdmin service for managing PostgreSQL database
   pgadmin: 
     image: dpage/pgadmin4
     restart: always
-    # Default email and password for PGAdmin
     environment:
       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
     networks:
       - kafka-network
-    # Expose PGAdmin web UI port for external connections
     ports:
       - "5050:80"
-
+  
+  # Consumer service that consumes messages from Kafka and stores them in PostgreSQL
   consumer:
     build:
       context: ./consumer
@@ -69,7 +94,8 @@ services:
       - kafka
       - postgres
     command: ["/wait-for-it.sh", "kafka:9092", "--", "/wait-for-it.sh", "postgres:5432", "--", "python", "consumer.py"]
-
+  
+  # Producer service that produces messages to Kafka based on data from an external API
   producer:
     build:
       context: ./producer
@@ -82,12 +108,13 @@ services:
       - kafka
     command: ["/wait-for-it.sh", "kafka:9092", "--", "python", "producer.py"]
 
-# Defining a named volume for PostgreSQL data persistence
+# Named volumes for data persistence
 volumes:
   postgres-db-volume:
   zookeeper-data-volume:
   kafka-data-volume:
 
+# Custom bridge network for inter-service communication
 networks:
   kafka-network:
     driver: bridge
