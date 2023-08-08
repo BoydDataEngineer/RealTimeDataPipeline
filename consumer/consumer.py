@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS Coach (
     fid VARCHAR(255),
     coach_number VARCHAR(50),
     load_value INT,
-    FOREIGN KEY (fid) REFERENCES Train(fid)
+    FOREIGN KEY (fid) REFERENCES Train(fid),
+    timestamp TIMESTAMP
 )
 """)
 
@@ -82,10 +83,10 @@ while True:
     # Insert into Coach table
     for coach in coaches:
         insert_coach_query = """
-        INSERT INTO Coach (fid, coach_number, load_value)
-        VALUES (%s, %s, %s)
+        INSERT INTO Coach (fid, coach_number, load_value, timestamp)
+        VALUES (%s, %s, %s, %s)
         """
-        cur.execute(insert_coach_query, (data["fid"], coach["coach_number"], coach["load_value"]))
+        cur.execute(insert_coach_query, (data["fid"], coach["coach_number"], coach["load_value"], data["timestamp"]))
     conn.commit()
 
     print(f"Received message (key={message.key()}): {message.value()}")
