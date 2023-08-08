@@ -76,8 +76,8 @@ services:
     networks:
       - kafka-network
     environment:
-      - USERNAME=${USERNAME}
-      - PASSWORD=${PASSWORD}
+      - USERNAME_API=${USERNAME_API}
+      - PASSWORD_API=${PASSWORD_API}
     depends_on:
       - kafka
     command: ["/wait-for-it.sh", "kafka:9092", "--", "python", "producer.py"]

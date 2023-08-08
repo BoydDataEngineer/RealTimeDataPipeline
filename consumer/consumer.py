@@ -22,7 +22,6 @@ DB_NAME = os.getenv("POSTGRES_DB")
 DB_USER = os.getenv("POSTGRES_USER")
 DB_PASSWORD = os.getenv("POSTGRES_PASSWORD")
 
-# Connect to PostgreSQL
 conn = psycopg2.connect(
     dbname=DB_NAME,
     user=DB_USER,
@@ -31,29 +30,27 @@ conn = psycopg2.connect(
 )
 cur = conn.cursor()
 
-# Create tables if they don't exist
+# Create tables
 cur.execute("""
-CREATE TABLE IF NOT EXISTS train_data (
-    id serial PRIMARY KEY,
-    key TEXT,
-    timestamp TIMESTAMP,
-    fid TEXT,
-    rid TEXT,
-    tpl TEXT,
+CREATE TABLE IF NOT EXISTS Train (
+    fid VARCHAR(255) PRIMARY KEY,
+    rid VARCHAR(255),
+    tpl VARCHAR(255),
     wta TIME,
     wtd TIME,
     pta TIME,
-    ptd TIME
+    ptd TIME,
+    timestamp TIMESTAMP
 )
 """)
 
 cur.execute("""
-CREATE TABLE IF NOT EXISTS coaches_data (
-    id serial PRIMARY KEY,
-    train_data_id integer references train_data(id),
-    timestamp TIMESTAMP,  -- added timestamp here
-    coach_number TEXT,
-    load_value INTEGER
+CREATE TABLE IF NOT EXISTS Coach (
+    id SERIAL PRIMARY KEY,
+    fid VARCHAR(255),
+    coach_number VARCHAR(50),
+    load_value INT,
+    FOREIGN KEY (fid) REFERENCES Train(fid)
 )
 """)
 
@@ -72,24 +69,23 @@ while True:
 
     data = json.loads(message.value())
     coaches = data.pop("coaches")
-    message_timestamp = data["timestamp"]  # Extracted the timestamp to be used for coaches
 
-    # Insert main data into train_data table
+    # Insert into Train table
     insert_train_query = """
-    INSERT INTO train_data (key, timestamp, fid, rid, tpl, wta, wtd, pta, ptd)
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+    INSERT INTO Train (fid, rid, tpl, wta, wtd, pta, ptd, timestamp)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT (fid) DO UPDATE
+    SET rid = EXCLUDED.rid, tpl = EXCLUDED.tpl, wta = EXCLUDED.wta, wtd = EXCLUDED.wtd, pta = EXCLUDED.pta, ptd = EXCLUDED.ptd, timestamp = EXCLUDED.timestamp;
     """
-    cur.execute(insert_train_query, (message.key(), data["timestamp"], data["fid"], data["rid"], data["tpl"], data["wta"], data["wtd"], data["pta"], data["ptd"]))
-    train_data_id = cur.fetchone()[0]
+    cur.execute(insert_train_query, (data["fid"], data["rid"], data["tpl"], data["wta"], data["wtd"], data["pta"], data["ptd"], data["timestamp"]))
     conn.commit()
 
-    # Insert coaches data into coaches_data table
+    # Insert into Coach table
     for coach in coaches:
         insert_coach_query = """
-        INSERT INTO coaches_data (train_data_id, timestamp, coach_number, load_value)  -- Added timestamp column here
-        VALUES (%s, %s, %s, %s)
+        INSERT INTO Coach (fid, coach_number, load_value)
+        VALUES (%s, %s, %s)
         """
-        cur.execute(insert_coach_query, (train_data_id, message_timestamp, coach["coach_number"], coach["load_value"]))  # Added message_timestamp here
+        cur.execute(insert_coach_query, (data["fid"], coach["coach_number"], coach["load_value"]))
     conn.commit()
 
     print(f"Received message (key={message.key()}): {message.value()}")

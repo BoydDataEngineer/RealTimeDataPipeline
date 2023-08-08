@@ -85,8 +85,8 @@ def reconnect():
 
 HOSTNAME = "darwin-dist-44ae45.nationalrail.co.uk"
 HOSTPORT = 61613
-USERNAME = os.getenv("USERNAME")
-PASSWORD = os.getenv("PASSWORD")
+USERNAME = os.getenv("USERNAME_API")
+PASSWORD = os.getenv("PASSWORD_API")
 TOPIC = "/topic/darwin.pushport-v16"
 
 KAFKA_BROKER = 'kafka:9092'
@@ -98,10 +98,26 @@ producer_conf = {
 
 producer = Producer(producer_conf)
 
+MAX_RETRIES = 5
+RETRY_DELAY = 5  # in seconds
+
 conn = stomp.Connection([(HOSTNAME, HOSTPORT)], auto_decode=False)
-# Set up the initial connection
 conn.set_listener('', MyListener())
-conn.connect(USERNAME, PASSWORD, wait=True)
+
+# Retry mechanism for the initial connection
+for i in range(MAX_RETRIES):
+    try:
+        conn.connect(USERNAME, PASSWORD, wait=True)
+        break
+    except stomp.exception.ConnectFailedException:
+        if i < MAX_RETRIES - 1:
+            print(f"Connection failed. Retrying in {RETRY_DELAY} seconds...")
+            time.sleep(RETRY_DELAY)
+        else:
+            print("Max retries reached. Exiting...")
+            raise
+
+# Once connected, proceed to subscribe
 conn.subscribe(destination=TOPIC, id=1, ack='auto', headers={'selector': "MessageType = 'LO'"})
 
 # Keep the script running
